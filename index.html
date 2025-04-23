@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Storage System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        #box-container, #item-container {
+            margin-top: 20px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        li:hover {
+            background-color: #e0e0e0;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        .rename-btn, .print-btn {
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+        #item-container {
+            display: none;
+        }
+        #back-btn {
+            display: none;
+        }
+        #loading {
+            display: none;
+            color: #555;
+        }
+        #search-container {
+            margin-bottom: 20px;
+        }
+        #search-result {
+            margin-top: 10px;
+            color: #333;
+        }
+        .qr-container {
+            display: flex;
+            align-items: center;
+            margin-left: 10px;
+        }
+        canvas {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Smart Storage</h1>
+    <div id="search-container">
+        <label for="item-search">Search Items: </label>
+        <select id="item-search" onchange="searchItem()">
+            <option value="">Select an item</option>
+        </select>
+        <div id="search-result"></div>
+    </div>
+    <button onclick="addBox()">Add Box</button>
+    <button id="back-btn" onclick="showBoxList()">Back to Boxes</button>
+    <div id="loading">Loading...</div>
+    <div id="box-container">
+        <ul id="boxList"></ul>
+    </div>
+    <div id="item-container">
+        <h2 id="current-box">Box</h2>
+        <button onclick="addItem()">Add Item</button>
+        <ul id="itemList"></ul>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNMEbKVxnn27RpDY7erHR6nBisaBx1-3h4SCYtyhQUEX9HLGz2WanVdu3nnO2fqE5lZg/exec'; // Replace with your Web app URL
+        const BASE_URL = window.location.origin + window.location.pathname; // GitHub Pages URL
+
+        // Load boxes and check for box query parameter
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const boxName = urlParams.get('box');
+            if (boxName) {
+                showItems(boxName);
+            } else {
+                loadBoxes();
+            }
+        };
+
+        async function loadBoxes() {
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const response = await fetch(SCRIPT_URL, { method: 'GET' });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    const boxList = document.getElementById('boxList');
+                    boxList.innerHTML = '';
+                    Object.keys(result.data).forEach(boxName => {
+                        const li = document.createElement('li');
+                        li.setAttribute('data-box', boxName);
+                        li.innerHTML = `
+                            ${boxName}
+                            <div class="qr-container">
+                                <canvas id="qr-${boxName.replace(/\s+/g, '-')}" title="QR Code for ${boxName}"></canvas>
+                                <button class="print-btn" onclick="printQR('${boxName}')">Print QR</button>
+                                <button class="rename-btn" onclick="renameBox('${boxName}', event)">Rename</button>
+                            </div>
+                        `;
+                        li.onclick = () => showItems(boxName);
+                        boxList.appendChild(li);
+                        // Generate QR code
+                        const qrUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
+                        QRCode.toCanvas(document.getElementById(`qr-${boxName.replace(/\s+/g, '-')}`), qrUrl, { width: 50 }, err => {
+                            if (err) console.error(err);
+                        });
+                    });
+                    // Populate search dropdown
+                    const searchSelect = document.getElementById('item-search');
+                    searchSelect.innerHTML = '<option value="">Select an item</option>';
+                    result.items.sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.itemName;
+                        option.textContent = item.itemName;
+                        searchSelect.appendChild(option);
+                    });
+                } else {
+                    alert('Error loading boxes: ' + result.error);
+                }
+            } catch (e) {
+                alert('Error loading boxes: ' + e.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        async function addBox() {
+            const boxName = prompt('Box Name: ');
+            if (!boxName) return;
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: new URLSearchParams({ action: 'addBox', boxName })
+                });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    loadBoxes();
+                } else {
+                    alert('Error adding box: ' + result.error);
+                }
+            } catch (e) {
+                alert('Error adding box: ' + e.message);
+            }
+        }
+
+        async function renameBox(oldName, event) {
+            event.stopPropagation();
+            const newName = prompt('New Box Name: ', oldName);
+            if (!newName || newName === oldName) return;
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: new URLSearchParams({ action: 'renameBox', oldName, newName })
+                });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    loadBoxes();
+                } else {
+                    alert('Error renaming box: ' + result.error);
+                }
+            } catch (e) {
+                alert('Error renaming box: ' + e.message);
+            }
+        }
+
+        async function showItems(boxName) {
+            document.getElementById('box-container').style.display = 'none';
+            document.getElementById('item-container').style.display = 'block';
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-box').textContent = boxName;
+            window.currentBox = boxName;
+
+            try {
+                const response = await fetch(SCRIPT_URL, { method: 'GET' });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    const itemList = document.getElementById('itemList');
+                    itemList.innerHTML = '';
+                    const items = result.data[boxName] || [];
+                    items.forEach(item => {
+                        const li = document.createElement('li');
+                        li.textContent = item;
+                        itemList.appendChild(li);
+                    });
+                } else {
+                    alert('Error loading items: ' + result.error);
+                }
+            } catch (e) {
+                alert('Error loading items: ' + e.message);
+            }
+        }
+
+        async function addItem() {
+            const itemName = prompt('Item Name: ');
+            if (!itemName) return;
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: new URLSearchParams({ action: 'addItem', boxName: window.currentBox, itemName })
+                });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    showItems(window.currentBox);
+                } else {
+                    alert('Error adding item: ' + result.error);
+                }
+            } catch (e) {
+                alert('Error adding item: ' + e.message);
+            }
+        }
+
+        function showBoxList() {
+            document.getElementById('box-container').style.display = 'block';
+            document.getElementById('item-container').style.display = 'none';
+            document.getElementById('back-btn').style.display = 'none';
+            // Clear query parameter
+            window.history.pushState({}, '', BASE_URL);
+            loadBoxes();
+        }
+
+        function printQR(boxName) {
+            const canvas = document.getElementById(`qr-${boxName.replace(/\s+/g, '-')}`);
+            const printWindow = window.open('');
+            printWindow.document.write(`
+                <html>
+                    <body style="text-align: center;">
+                        <h2>QR Code for ${boxName}</h2>
+                        <img src="${canvas.toDataURL()}" />
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        async function searchItem() {
+            const searchSelect = document.getElementById('item-search');
+            const itemName = searchSelect.value;
+            const searchResult = document.getElementById('search-result');
+            if (!itemName) {
+                searchResult.textContent = '';
+                return;
+            }
+            try {
+                const response = await fetch(SCRIPT_URL, { method: 'GET' });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    const item = result.items.find(i => i.itemName === itemName);
+                    if (item) {
+                        searchResult.textContent = `Item "${itemName}" is in ${item.boxName}`;
+                    } else {
+                        searchResult.textContent = `Item "${itemName}" not found`;
+                    }
+                } else {
+                    searchResult.textContent = 'Error loading items';
+                }
+            } catch (e) {
+                searchResult.textContent = 'Error loading items';
+            }
+        }
+    </script>
+</body>
+</html>
