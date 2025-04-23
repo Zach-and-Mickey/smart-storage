@@ -104,7 +104,7 @@
             console.log('qrcode.js loaded successfully');
         }
 
-        window Braun = () => {
+        window.onload = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const boxName = urlParams.get('box');
             if (boxName) {
