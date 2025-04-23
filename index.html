@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Smart Storage System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -65,6 +66,10 @@
         canvas {
             margin-right: 5px;
         }
+        .qr-error {
+            color: red;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -88,17 +93,22 @@
         <ul id="itemList"></ul>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer onload="onQRCodeLoaded()"></script>
     <script>
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNMEbKVxnn27RpDY7erHR6nBisaBx1-3h4SCYtyhQUEX9HLGz2WanVdu3nnO2fqE5lZg/exec'; // Replace with your Web app URL
-        const BASE_URL = window.location.origin + window.location.pathname; // GitHub Pages URL
+        const BASE_URL = window.location.origin + window.location.pathname;
+        let qrCodeLoaded = false;
 
-        // Load boxes and check for box query parameter
-        window.onload = () => {
+        function onQRCodeLoaded() {
+            qrCodeLoaded = true;
+            console.log('qrcode.js loaded successfully');
+        }
+
+        window Braun = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const boxName = urlParams.get('box');
             if (boxName) {
-                showItems(boxName);
+                showItems(decodeURIComponent(boxName));
             } else {
                 loadBoxes();
             }
@@ -107,35 +117,51 @@
         async function loadBoxes() {
             document.getElementById('loading').style.display = 'block';
             try {
-                const response = await fetch(SCRIPT_URL, { method: 'GET' });
+                const response = await fetch(SCRIPT_URL + '?t=' + Date.now(), { method: 'GET' });
                 const result = await response.json();
+                console.log('API Response:', result);
                 if (result.result === 'success') {
                     const boxList = document.getElementById('boxList');
                     boxList.innerHTML = '';
-                    Object.keys(result.data).forEach(boxName => {
-                        const li = document.createElement('li');
-                        li.setAttribute('data-box', boxName);
-                        li.innerHTML = `
-                            ${boxName}
-                            <div class="qr-container">
-                                <canvas id="qr-${boxName.replace(/\s+/g, '-')}" title="QR Code for ${boxName}"></canvas>
-                                <button class="print-btn" onclick="printQR('${boxName}')">Print QR</button>
-                                <button class="rename-btn" onclick="renameBox('${boxName}', event)">Rename</button>
-                            </div>
-                        `;
-                        li.onclick = () => showItems(boxName);
-                        boxList.appendChild(li);
-			console.log('API Response Data:', result.data);
-                        // Generate QR code
-                        const qrUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
-                        QRCode.toCanvas(document.getElementById(`qr-${boxName.replace(/\s+/g, '-')}`), qrUrl, { width: 50 }, err => {
-                            if (err) console.error(err);
-                        });
+                    const boxNames = Object.keys(result.data);
+                    console.log('Box Names:', boxNames);
+                    boxNames.forEach(boxName => {
+                        try {
+                            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+                            const li = document.createElement('li');
+                            li.setAttribute('data-box', boxName);
+                            li.innerHTML = `
+                                ${boxName}
+                                <div class="qr-container">
+                                    <canvas id="qr-${safeBoxId}" title="QR Code for ${boxName}"></canvas>
+                                    <button class="print-btn" onclick="printQR('${boxName}')">Print QR</button>
+                                    <button class="rename-btn" onclick="renameBox('${boxName}', event)">Rename</button>
+                                    <span class="qr-error" id="qr-error-${safeBoxId}"></span>
+                                </div>
+                            `;
+                            li.onclick = () => showItems(boxName);
+                            boxList.appendChild(li);
+                            console.log('Appended box:', boxName);
+                        } catch (e) {
+                            console.error('Error rendering box:', boxName, e);
+                        }
                     });
-                    // Populate search dropdown
+                    // Generate QR codes after rendering all boxes
+                    if (qrCodeLoaded && window.QRCode) {
+                        boxNames.forEach(boxName => {
+                            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+                            generateQRCode(boxName, safeBoxId);
+                        });
+                    } else {
+                        console.warn('QRCode not loaded, skipping QR code generation');
+                        boxNames.forEach(boxName => {
+                            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+                            document.getElementById(`qr-error-${safeBoxId}`).textContent = 'QR code library not loaded';
+                        });
+                    }
                     const searchSelect = document.getElementById('item-search');
                     searchSelect.innerHTML = '<option value="">Select an item</option>';
-                    result.items.sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
+                    (result.items || []).sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
                         const option = document.createElement('option');
                         option.value = item.itemName;
                         option.textContent = item.itemName;
@@ -145,9 +171,33 @@
                     alert('Error loading boxes: ' + result.error);
                 }
             } catch (e) {
+                console.error('Load Boxes Error:', e);
                 alert('Error loading boxes: ' + e.message);
             } finally {
                 document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        async function generateQRCode(boxName, safeBoxId) {
+            const canvas = document.getElementById(`qr-${safeBoxId}`);
+            const errorSpan = document.getElementById(`qr-error-${safeBoxId}`);
+            if (!canvas || !window.QRCode) {
+                errorSpan.textContent = 'QR code unavailable';
+                console.error('QRCode or canvas missing for:', boxName);
+                return;
+            }
+            try {
+                const qrUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
+                console.log('Generating QR for:', boxName, 'URL:', qrUrl);
+                await QRCode.toCanvas(canvas, qrUrl, { width: 50 }, err => {
+                    if (err) {
+                        errorSpan.textContent = 'Failed to generate QR code';
+                        console.error('QR Code Error:', err);
+                    }
+                });
+            } catch (e) {
+                errorSpan.textContent = 'QR code error';
+                console.error('QR Code Generation Error:', e);
             }
         }
 
@@ -240,13 +290,17 @@
             document.getElementById('box-container').style.display = 'block';
             document.getElementById('item-container').style.display = 'none';
             document.getElementById('back-btn').style.display = 'none';
-            // Clear query parameter
             window.history.pushState({}, '', BASE_URL);
             loadBoxes();
         }
 
         function printQR(boxName) {
-            const canvas = document.getElementById(`qr-${boxName.replace(/\s+/g, '-')}`);
+            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            const canvas = document.getElementById(`qr-${safeBoxId}`);
+            if (!canvas || !canvas.toDataURL()) {
+                alert('QR code not generated for ' + boxName);
+                return;
+            }
             const printWindow = window.open('');
             printWindow.document.write(`
                 <html>
