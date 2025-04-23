@@ -125,6 +125,7 @@
                         `;
                         li.onclick = () => showItems(boxName);
                         boxList.appendChild(li);
+			console.log('API Response Data:', result.data);
                         // Generate QR code
                         const qrUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
                         QRCode.toCanvas(document.getElementById(`qr-${boxName.replace(/\s+/g, '-')}`), qrUrl, { width: 50 }, err => {
