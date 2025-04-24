@@ -193,10 +193,13 @@
             try {
                 const qrUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
-                new window.QRCode(canvas, {
-                    text: qrUrl,
+                new QRCode(canvas, {
+                    text: 'https://zach-and-mickey.github.io/smart-storage/',
                     width: 50,
-                    height: 50
+                    height: 50,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
                 });
                 // Verify canvas content
                 const ctx = canvas.getContext('2d');
