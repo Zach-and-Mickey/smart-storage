@@ -144,7 +144,7 @@
                             li.innerHTML = `
                                 ${boxName}
                                 <div class="qr-container">
-                                    <canvas id="qr-${safeBoxId}" title="QR Code for ${boxName}"></canvas>
+                                    <canvas id="qr-${safeBoxId}" title="QR Code for ${boxName}" width="50" height="50"></canvas>
                                     <button class="print-btn" onclick="printQR('${boxName}')">Print QR</button>
                                     <button class="rename-btn" onclick="renameBox('${boxName}', event)">Rename</button>
                                     <span class="qr-error" id="qr-error-${safeBoxId}"></span>
@@ -198,7 +198,17 @@
                     width: 50,
                     height: 50
                 });
-                errorSpan.textContent = '';
+                // Verify canvas content
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                const isEmpty = imageData.every(pixel => pixel === 0);
+                if (isEmpty) {
+                    errorSpan.textContent = 'QR code failed to render';
+                    console.error('QR code canvas is empty for:', boxName);
+                } else {
+                    errorSpan.textContent = '';
+                    console.log('QR code rendered successfully for:', boxName);
+                }
             } catch (e) {
                 errorSpan.textContent = 'QR code generation error';
                 console.error('QR Code Generation Error:', e);
@@ -305,21 +315,30 @@
         function printQR(boxName) {
             const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
             const canvas = document.getElementById(`qr-${safeBoxId}`);
-            if (!canvas || !canvas.toDataURL()) {
+            if (!canvas) {
                 alert('QR code not generated for ' + boxName);
                 return;
             }
-            const printWindow = window.open('');
-            printWindow.document.write(`
-                <html>
-                    <body style="text-align: center;">
-                        <h2>QR Code for ${boxName}</h2>
-                        <img src="${canvas.toDataURL()}" />
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
+            // Delay to ensure QR code rendering
+            setTimeout(() => {
+                const dataUrl = canvas.toDataURL('image/png');
+                console.log('QR code data URL for', boxName, ':', dataUrl.substring(0, 50) + '...');
+                if (!dataUrl || dataUrl === 'data:,') {
+                    alert('QR code image is empty for ' + boxName);
+                    return;
+                }
+                const printWindow = window.open('');
+                printWindow.document.write(`
+                    <html>
+                        <body style="text-align: center;">
+                            <h2>QR Code for ${boxName}</h2>
+                            <img src="${dataUrl}" style="width: 100px; height: 100px;" />
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+            }, 100);
         }
 
         async function searchItem() {
@@ -334,7 +353,8 @@
                 const response = await fetch(SCRIPT_URL, { method: 'GET' });
                 const result = await response.json();
                 if (result.result === 'success') {
-                    const item = result.items.find(i => i.itemName === itemName);
+                    const item = result.items.find(i => i.itemName === i
+                    temName);
                     if (item) {
                         searchResult.textContent = `Item "${itemName}" is in ${item.boxName}`;
                     } else {
