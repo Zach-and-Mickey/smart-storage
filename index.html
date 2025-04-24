@@ -356,8 +356,7 @@
                 const response = await fetch(SCRIPT_URL, { method: 'GET' });
                 const result = await response.json();
                 if (result.result === 'success') {
-                    const item = result.items.find(i => i.itemName === i
-                    temName);
+                    const item = result.items.find(i => i.itemName === itemName);
                     if (item) {
                         searchResult.textContent = `Item "${itemName}" is in ${item.boxName}`;
                     } else {
