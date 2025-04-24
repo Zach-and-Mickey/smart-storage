@@ -60,6 +60,11 @@
             font-size: 12px;
             margin-left: 5px;
         }
+        .error-message {
+            color: red;
+            text-align: center;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -80,7 +85,7 @@
 
         window.onload = () => {
             renderPage();
-            isInitialLoad = false; // Prevent onpopstate during initial load
+            isInitialLoad = false;
         };
 
         window.onpopstate = () => {
@@ -92,37 +97,65 @@
 
         async function renderPage() {
             let boxName = null;
-            // Check for hash parameter (#path=Box%201)
+            const content = document.getElementById('content');
+            content.innerHTML = '<div id="loading">Loading...</div>';
+
+            // Parse hash (#path=Box%201)
             const hash = window.location.hash;
             if (hash.startsWith('#path=')) {
-                const path = hash.substring(6); // Remove '#path='
+                const path = hash.substring(6).trim();
                 boxName = path ? decodeURIComponent(path) : null;
                 console.log('Parsed boxName from hash:', boxName);
-            } else {
-                // Fallback to pathname
-                const path = window.location.pathname.replace('/smart-storage/', '');
+            }
+
+            // Fallback to pathname for in-app navigation
+            if (!boxName) {
+                const path = window.location.pathname.replace('/smart-storage/', '').trim();
                 boxName = path ? decodeURIComponent(path) : null;
                 console.log('Parsed boxName from pathname:', boxName);
             }
 
-            const content = document.getElementById('content');
-            content.innerHTML = '<div id="loading">Loading...</div>';
             try {
                 const response = await fetch(SCRIPT_URL + '?t=' + Date.now(), { method: 'GET' });
                 const result = await response.json();
                 console.log('API Response:', result);
                 if (result.result !== 'success') {
-                    content.innerHTML = '<p>Error loading data: ' + result.error + '</p>';
+                    content.innerHTML = '<p class="error-message">Error loading data: ' + result.error + '</p>';
                     return;
                 }
-                if (boxName && result.data[boxName]) {
-                    renderBoxPage(boxName, result.data[boxName], result.items);
+
+                // Normalize boxName and data keys
+                const boxNames = Object.keys(result.data);
+                console.log('Available box names:', boxNames);
+                let matchedBoxName = null;
+                if (boxName) {
+                    // Exact match
+                    if (result.data[boxName]) {
+                        matchedBoxName = boxName;
+                    } else {
+                        // Case-insensitive match
+                        const lowerBoxName = boxName.toLowerCase();
+                        matchedBoxName = boxNames.find(name => name.toLowerCase() === lowerBoxName);
+                    }
+                }
+
+                if (matchedBoxName) {
+                    console.log('Rendering box page for:', matchedBoxName);
+                    renderBoxPage(matchedBoxName, result.data[matchedBoxName], result.items);
+                    // Clear hash to prevent re-processing
+                    if (window.location.hash) {
+                        window.history.replaceState({}, '', BASE_URL + '/' + encodeURIComponent(matchedBoxName));
+                    }
                 } else {
+                    console.log('No matching box found, rendering home page');
                     renderHomePage(result.data, result.items);
+                    if (boxName) {
+                        content.innerHTML += `<p class="error-message">Box "${boxName}" not found</p>`;
+                    }
                 }
             } catch (e) {
                 console.error('Render Error:', e);
-                content.innerHTML = '<p>Error loading data: ' + e.message + '</p>';
+                content.innerHTML = '<p class="error-message">Error loading data: ' + e.message + '</p>';
             }
         }
 
@@ -229,8 +262,8 @@
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
                 new QRCode(qrContainer, {
                     text: qrUrl,
-                    width: 200,
-                    height: 200
+                    width: 50,
+                    height: 50
                 });
                 const canvas = qrContainer.querySelector('canvas');
                 if (!canvas) {
