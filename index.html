@@ -93,15 +93,25 @@
         <ul id="itemList"></ul>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer onload="onQRCodeLoaded()"></script>
+    <script src="js/qrcode.min.js" defer onload="onQRCodeLoaded()"></script>
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNMEbKVxnn27RpDY7erHR6nBisaBx1-3h4SCYtyhQUEX9HLGz2WanVdu3nnO2fqE5lZg/exec'; // Replace with your Web app URL
+        const SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL'; // Replace with your Web app URL
         const BASE_URL = window.location.origin + window.location.pathname;
         let qrCodeLoaded = false;
 
         function onQRCodeLoaded() {
             qrCodeLoaded = true;
             console.log('qrcode.js loaded successfully');
+            // Generate QR codes for already-rendered boxes
+            if (window.QRCode) {
+                document.querySelectorAll('#boxList li').forEach(li => {
+                    const boxName = li.getAttribute('data-box');
+                    const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+                    generateQRCode(boxName, safeBoxId);
+                });
+            } else {
+                console.error('QRCode object not available after script load');
+            }
         }
 
         window.onload = () => {
@@ -142,23 +152,16 @@
                             li.onclick = () => showItems(boxName);
                             boxList.appendChild(li);
                             console.log('Appended box:', boxName);
+                            // Generate QR code if library is loaded
+                            if (qrCodeLoaded && window.QRCode) {
+                                generateQRCode(boxName, safeBoxId);
+                            } else {
+                                document.getElementById(`qr-error-${safeBoxId}`).textContent = 'QR code loading...';
+                            }
                         } catch (e) {
                             console.error('Error rendering box:', boxName, e);
                         }
                     });
-                    // Generate QR codes after rendering all boxes
-                    if (qrCodeLoaded && window.QRCode) {
-                        boxNames.forEach(boxName => {
-                            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-                            generateQRCode(boxName, safeBoxId);
-                        });
-                    } else {
-                        console.warn('QRCode not loaded, skipping QR code generation');
-                        boxNames.forEach(boxName => {
-                            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-                            document.getElementById(`qr-error-${safeBoxId}`).textContent = 'QR code library not loaded';
-                        });
-                    }
                     const searchSelect = document.getElementById('item-search');
                     searchSelect.innerHTML = '<option value="">Select an item</option>';
                     (result.items || []).sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
@@ -182,7 +185,7 @@
             const canvas = document.getElementById(`qr-${safeBoxId}`);
             const errorSpan = document.getElementById(`qr-error-${safeBoxId}`);
             if (!canvas || !window.QRCode) {
-                errorSpan.textContent = 'QR code unavailable';
+                errorSpan.textContent = 'QR code library not loaded';
                 console.error('QRCode or canvas missing for:', boxName);
                 return;
             }
@@ -193,10 +196,12 @@
                     if (err) {
                         errorSpan.textContent = 'Failed to generate QR code';
                         console.error('QR Code Error:', err);
+                    } else {
+                        errorSpan.textContent = '';
                     }
                 });
             } catch (e) {
-                errorSpan.textContent = 'QR code error';
+                errorSpan.textContent = 'QR code generation error';
                 console.error('QR Code Generation Error:', e);
             }
         }
@@ -246,6 +251,10 @@
             document.getElementById('back-btn').style.display = 'inline-block';
             document.getElementById('current-box').textContent = boxName;
             window.currentBox = boxName;
+
+            // Update URL without reloading
+            const newUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
+            window.history.pushState({ boxName }, '', newUrl);
 
             try {
                 const response = await fetch(SCRIPT_URL, { method: 'GET' });
@@ -339,6 +348,17 @@
                 searchResult.textContent = 'Error loading items';
             }
         }
+
+        // Handle browser back/forward buttons
+        window.onpopstate = (event) => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const boxName = urlParams.get('box');
+            if (boxName) {
+                showItems(decodeURIComponent(boxName));
+            } else {
+                showBoxList();
+            }
+        };
     </script>
 </body>
 </html>
