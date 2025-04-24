@@ -136,28 +136,17 @@
                     li.setAttribute('data-box', boxName);
                     li.innerHTML = `
                         ${boxName}
-                        <div class="qr-container">
-                            <canvas id="qr-${safeBoxId}" title="QR Code for ${boxName}" width="50" height="50"></canvas>
-                            <button class="print-btn" onclick="printQR('${boxName}')">Print QR</button>
+                        <div class="rename-container">
                             <button class="rename-btn" onclick="renameBox('${boxName}', event)">Rename</button>
-                            <span class="qr-error" id="qr-error-${safeBoxId}"></span>
                         </div>
                     `;
                     li.onclick = (e) => {
-                        if (e.target.tagName !== 'BUTTON' && !e.target.closest('.qr-container')) {
+                        if (e.target.tagName !== 'BUTTON' && !e.target.closest('.rename-container')) {
                             showBoxPage(boxName);
                         }
                     };
                     boxList.appendChild(li);
                     console.log('Appended box:', boxName);
-                    if (qrCodeLoaded && window.QRCode) {
-                        generateQRCode(boxName, safeBoxId);
-                    } else {
-                        document.getElementById(`qr-error-${safeBoxId}`).textContent = 'QR code loading...';
-                    }
-                } catch (e) {
-                    console.error('Error rendering box:', boxName, e);
-                }
             });
             const searchSelect = document.getElementById('item-search');
             (items || []).sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
@@ -176,6 +165,8 @@
                 <button onclick="addItem()">Add Item</button>
                 <button onclick="showHomePage()">Back to Boxes</button>
                 <ul id="itemList"></ul>
+                <button onclick="generateQRCode()">Print QR</button>
+                <div id= 'qr-${safeBoxId}'></div>
             `;
             window.currentBox = boxName;
             const itemList = document.getElementById('itemList');
@@ -219,7 +210,7 @@
             try {
                 const qrUrl = `${BASE_URL}/${encodeURIComponent(boxName)}`;
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
-                new window.QRCode(canvas, {
+                new QRCode(canvas, {
                     text: qrUrl,
                     width: 50,
                     height: 50
