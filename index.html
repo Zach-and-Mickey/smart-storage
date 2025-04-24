@@ -69,6 +69,7 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNMEbKVxnn27RpDY7erHR6nBisaBx1-3h4SCYtyhQUEX9HLGz2WanVdu3nnO2fqE5lZg/exec';
         const BASE_URL = 'https://zach-and-mickey.github.io/smart-storage';
         let qrCodeLoaded = false;
+        let isInitialLoad = true;
 
         function onQRCodeLoaded() {
             qrCodeLoaded = true;
@@ -79,15 +80,31 @@
 
         window.onload = () => {
             renderPage();
+            isInitialLoad = false; // Prevent onpopstate during initial load
         };
 
         window.onpopstate = () => {
-            renderPage();
+            if (!isInitialLoad) {
+                console.log('Popstate triggered, rendering page');
+                renderPage();
+            }
         };
 
         async function renderPage() {
-            const path = window.location.pathname.replace('/smart-storage/', '');
-            const boxName = path ? decodeURIComponent(path) : null;
+            let boxName = null;
+            // Check for hash parameter (#path=Box%201)
+            const hash = window.location.hash;
+            if (hash.startsWith('#path=')) {
+                const path = hash.substring(6); // Remove '#path='
+                boxName = path ? decodeURIComponent(path) : null;
+                console.log('Parsed boxName from hash:', boxName);
+            } else {
+                // Fallback to pathname
+                const path = window.location.pathname.replace('/smart-storage/', '');
+                boxName = path ? decodeURIComponent(path) : null;
+                console.log('Parsed boxName from pathname:', boxName);
+            }
+
             const content = document.getElementById('content');
             content.innerHTML = '<div id="loading">Loading...</div>';
             try {
@@ -212,8 +229,8 @@
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
                 new QRCode(qrContainer, {
                     text: qrUrl,
-                    width: 150,
-                    height: 150
+                    width: 50,
+                    height: 50
                 });
                 const canvas = qrContainer.querySelector('canvas');
                 if (!canvas) {
@@ -321,7 +338,7 @@
                 } else {
                     proceedWithPrint(canvas, boxName, safeBoxId);
                 }
-            }, 1500);
+            }, 2000);
         }
 
         function proceedWithPrint(canvas, boxName, safeBoxId) {
