@@ -262,8 +262,8 @@
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
                 new QRCode(qrContainer, {
                     text: qrUrl,
-                    width: 50,
-                    height: 50
+                    width: 250px,
+                    height: 250px
                 });
                 const canvas = qrContainer.querySelector('canvas');
                 if (!canvas) {
