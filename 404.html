@@ -5,11 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
-        // Redirect to index.html with the original path preserved
+        // Redirect to index.html with the original path as a hash parameter
         window.onload = function() {
-            const path = window.location.pathname + window.location.search + window.location.hash;
-            console.log('404 redirecting to:', '/smart-storage/index.html' + path);
-            window.location.replace('/smart-storage/index.html' + path);
+            const originalPath = window.location.pathname.replace('/smart-storage/', '');
+            const redirectUrl = '/smart-storage/#path=' + encodeURIComponent(originalPath);
+            console.log('404 redirecting to:', redirectUrl);
+            window.location.replace(redirectUrl);
         };
     </script>
 </head>
