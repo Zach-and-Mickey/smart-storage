@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>404 Not Found - Smart Storage System</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Redirect to index.html with the original path preserved
+        window.onload = function() {
+            const path = window.location.pathname + window.location.search + window.location.hash;
+            console.log('404 redirecting to:', '/smart-storage/index.html' + path);
+            window.location.replace('/smart-storage/index.html' + path);
+        };
+    </script>
+</head>
+<body>
+    <h1>404 Not Found</h1>
+    <p>Redirecting to the Smart Storage System...</p>
+</body>
+</html>
