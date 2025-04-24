@@ -95,13 +95,14 @@
 
     <script src="js/qrcode.min.js" defer onload="onQRCodeLoaded()"></script>
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNMEbKVxnn27RpDY7erHR6nBisaBx1-3h4SCYtyhQUEX9HLGz2WanVdu3nnO2fqE5lZg/exec'; // Replace with your Web app URL
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNMEbKVxnn27RpDY7erHR6nBisaBx1-3h4SCYtyhQUEX9HLGz2WanVdu3nnO2fqE5lZg/exec';
         const BASE_URL = window.location.origin + window.location.pathname;
         let qrCodeLoaded = false;
 
         function onQRCodeLoaded() {
             qrCodeLoaded = true;
             console.log('qrcode.js loaded successfully');
+            console.log('QRCode object:', window.QRCode);
             // Generate QR codes for already-rendered boxes
             if (window.QRCode) {
                 document.querySelectorAll('#boxList li').forEach(li => {
@@ -181,7 +182,7 @@
             }
         }
 
-        async function generateQRCode(boxName, safeBoxId) {
+        function generateQRCode(boxName, safeBoxId) {
             const canvas = document.getElementById(`qr-${safeBoxId}`);
             const errorSpan = document.getElementById(`qr-error-${safeBoxId}`);
             if (!canvas || !window.QRCode) {
@@ -192,14 +193,12 @@
             try {
                 const qrUrl = `${BASE_URL}?box=${encodeURIComponent(boxName)}`;
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
-                await QRCode.toCanvas(canvas, qrUrl, { width: 50 }, err => {
-                    if (err) {
-                        errorSpan.textContent = 'Failed to generate QR code';
-                        console.error('QR Code Error:', err);
-                    } else {
-                        errorSpan.textContent = '';
-                    }
+                new window.QRCode(canvas, {
+                    text: qrUrl,
+                    width: 50,
+                    height: 50
                 });
+                errorSpan.textContent = '';
             } catch (e) {
                 errorSpan.textContent = 'QR code generation error';
                 console.error('QR Code Generation Error:', e);
