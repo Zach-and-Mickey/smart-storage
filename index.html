@@ -53,14 +53,12 @@
         .qr-container {
             display: flex;
             align-items: center;
-            margin-left: 10px;
-        }
-        canvas {
-            margin-right: 5px;
+            margin-top: 10px;
         }
         .qr-error {
             color: red;
             font-size: 12px;
+            margin-left: 5px;
         }
     </style>
 </head>
@@ -147,6 +145,9 @@
                     };
                     boxList.appendChild(li);
                     console.log('Appended box:', boxName);
+                } catch (e) {
+                    console.error('Error rendering box:', boxName, e);
+                }
             });
             const searchSelect = document.getElementById('item-search');
             (items || []).sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
@@ -158,6 +159,8 @@
         }
 
         function renderBoxPage(boxName, items, allItems) {
+            const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            console.log('Rendering box page for boxName:', boxName, 'safeBoxId:', safeBoxId);
             const content = document.getElementById('content');
             content.innerHTML = `
                 <h1>Smart Storage</h1>
@@ -165,8 +168,11 @@
                 <button onclick="addItem()">Add Item</button>
                 <button onclick="showHomePage()">Back to Boxes</button>
                 <ul id="itemList"></ul>
-                <button onclick="generateQRCode()">Print QR</button>
-                <div id= 'qr-${safeBoxId}'></div>
+                <div class="qr-container">
+                    <div id="qr-${safeBoxId}" title="QR Code for ${boxName}"></div>
+                    <button class="print-btn" onclick="printQR('${boxName}')">Print QR</button>
+                    <span class="qr-error" id="qr-error-${safeBoxId}"></span>
+                </div>
             `;
             window.currentBox = boxName;
             const itemList = document.getElementById('itemList');
@@ -175,16 +181,10 @@
                 li.textContent = item;
                 itemList.appendChild(li);
             });
-            // Update search dropdown
-            const searchSelect = document.getElementById('item-search');
-            if (searchSelect) {
-                searchSelect.innerHTML = '<option value="">Select an item</option>';
-                (allItems || []).sort((a, b) => a.itemName.localeCompare(b.itemName)).forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.itemName;
-                    option.textContent = item.itemName;
-                    searchSelect.appendChild(option);
-                });
+            if (qrCodeLoaded && window.QRCode) {
+                generateQRCode(boxName, safeBoxId);
+            } else {
+                document.getElementById(`qr-error-${safeBoxId}`).textContent = 'QR code library not loaded';
             }
         }
 
@@ -200,33 +200,39 @@
         }
 
         function generateQRCode(boxName, safeBoxId) {
-            const canvas = document.getElementById(`qr-${safeBoxId}`);
+            const qrContainer = document.getElementById(`qr-${safeBoxId}`);
             const errorSpan = document.getElementById(`qr-error-${safeBoxId}`);
-            if (!canvas || !window.QRCode) {
-                errorSpan.textContent = 'QR code library not loaded';
-                console.error('QRCode or canvas missing for:', boxName, 'safeBoxId:', safeBoxId);
+            if (!qrContainer || !window.QRCode) {
+                if (errorSpan) errorSpan.textContent = 'QR code library not loaded';
+                console.error('QRCode or container missing for:', boxName, 'safeBoxId:', safeBoxId);
                 return;
             }
             try {
                 const qrUrl = `${BASE_URL}/${encodeURIComponent(boxName)}`;
                 console.log('Generating QR for:', boxName, 'URL:', qrUrl);
-                new QRCode(canvas, {
+                new QRCode(qrContainer, {
                     text: qrUrl,
                     width: 50,
                     height: 50
                 });
+                const canvas = qrContainer.querySelector('canvas');
+                if (!canvas) {
+                    if (errorSpan) errorSpan.textContent = 'QR code canvas not created';
+                    console.error('QR code canvas not created for:', boxName, 'safeBoxId:', safeBoxId);
+                    return;
+                }
                 const ctx = canvas.getContext('2d');
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
                 const isEmpty = imageData.every(pixel => pixel === 0);
                 if (isEmpty) {
-                    errorSpan.textContent = 'QR code failed to render';
+                    if (errorSpan) errorSpan.textContent = 'QR code failed to render';
                     console.error('QR code canvas is empty for:', boxName, 'safeBoxId:', safeBoxId);
                 } else {
-                    errorSpan.textContent = '';
+                    if (errorSpan) errorSpan.textContent = '';
                     console.log('QR code rendered successfully for:', boxName, 'safeBoxId:', safeBoxId);
                 }
             } catch (e) {
-                errorSpan.textContent = 'QR code generation error';
+                if (errorSpan) errorSpan.textContent = 'QR code generation error';
                 console.error('QR Code Generation Error for:', boxName, 'safeBoxId:', safeBoxId, e);
             }
         }
@@ -292,43 +298,62 @@
         function printQR(boxName) {
             const safeBoxId = boxName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
             console.log('Printing QR for boxName:', boxName, 'safeBoxId:', safeBoxId);
-            const canvas = document.getElementById(`qr-${safeBoxId}`);
-            if (!canvas) {
-                alert('QR code canvas not found for ' + boxName);
-                console.error('Canvas not found for:', boxName, 'safeBoxId:', safeBoxId);
+            const qrContainer = document.getElementById(`qr-${safeBoxId}`);
+            if (!qrContainer) {
+                alert('QR code container not found for ' + boxName);
+                console.error('Container not found for:', boxName, 'safeBoxId:', safeBoxId);
                 return;
             }
             setTimeout(() => {
-                const dataUrl = canvas.toDataURL('image/png');
-                console.log('QR code data URL for', boxName, ':', dataUrl.substring(0, 50) + '...');
-                if (!dataUrl || dataUrl === 'data:,') {
-                    alert('QR code image is empty for ' + boxName);
-                    console.error('Empty QR code image for:', boxName, 'safeBoxId:', safeBoxId);
-                    return;
+                const canvas = qrContainer.querySelector('canvas');
+                if (!canvas) {
+                    console.log('Canvas not found, regenerating QR for:', boxName);
+                    generateQRCode(boxName, safeBoxId);
+                    setTimeout(() => {
+                        const retryCanvas = qrContainer.querySelector('canvas');
+                        if (!retryCanvas) {
+                            alert('QR code canvas not found for ' + boxName);
+                            console.error('Retry canvas not found for:', boxName, 'safeBoxId:', safeBoxId);
+                            return;
+                        }
+                        proceedWithPrint(retryCanvas, boxName, safeBoxId);
+                    }, 500);
+                } else {
+                    proceedWithPrint(canvas, boxName, safeBoxId);
                 }
-                const testImg = document.createElement('img');
-                testImg.src = dataUrl;
-                testImg.onload = () => {
-                    console.log('Test image loaded successfully for:', boxName);
-                    const printWindow = window.open('');
-                    printWindow.document.write(`
-                        <html>
-                            <body style="text-align: center;">
-                                <h2>QR Code for ${boxName}</h2>
-                                <img src="${dataUrl}" style="width: 100px; height: 100px;" />
-                            </body>
-                        </html>
-                    `);
-                    printWindow.document.close();
-                    printWindow.print();
-                };
-                testImg.onerror = () => {
-                    alert('Failed to load QR code image for ' + boxName);
-                    console.error('Test image failed to load for:', boxName, 'safeBoxId:', safeBoxId);
-                };
-                document.body.appendChild(testImg);
-                setTimeout(() => document.body.removeChild(testImg), 0);
-            }, 500);
+            }, 1500);
+        }
+
+        function proceedWithPrint(canvas, boxName, safeBoxId) {
+            const dataUrl = canvas.toDataURL('image/png');
+            console.log('QR code data URL for', boxName, ':', dataUrl.substring(0, 50) + '...');
+            if (!dataUrl || dataUrl === 'data:,') {
+                alert('QR code image is empty for ' + boxName);
+                console.error('Empty QR code image for:', boxName, 'safeBoxId:', safeBoxId);
+                return;
+            }
+            const testImg = document.createElement('img');
+            testImg.src = dataUrl;
+            testImg.onload = () => {
+                console.log('Test image loaded successfully for:', boxName);
+                const printWindow = window.open('');
+                printWindow.document.write(`
+                    <html>
+                        <body style="text-align: center;">
+                            <h2>QR Code for ${boxName}</h2>
+                            <img src="${dataUrl}" style="width: 100px; height: 100px;" />
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+            };
+            testImg.onerror = () => {
+                alert('Failed to load QR code image for ' + boxName);
+                console.error('Test image failed to load for:', boxName, 'safeBoxId:', safeBoxId);
+            };
+            document.body.appendChild(testImg);
+            setTimeout(() => document.body.removeChild(testImg), 0);
         }
 
         async function searchItem() {
